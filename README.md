@@ -1,60 +1,57 @@
-Follow the author: @pressplayplease
+The code is inspired by https://github.com/anthonymartin/aws-acl-fail2ban which bans/unbans IPs using AWS Network ACL.
 
-Is this code useful? Has it saved you time? Please consider donating:
+# fail2ban-aws-waf
 
-Bitcoin - 1PPLC86abWCb3Ahez14vcJPUan6Zes9D5t   
-Ether - 0x92f59580479eaf61d4d81ee8441ff23fb1ec57dc  
-Litecoin - LPdsE3eHKnoxGa8yUkLoCwr7NXdh4WorRW
-
-# aws-acl-fail2ban
-This package includes a script and fail2ban configuration that allows you to use fail2ban when utilizing AWS elastic load balancer (ELB) and an apache webserver. It is useful to protect your site against DoS and brute force attacks when behind a reverse proxy load balancer like ELB. Special consideration is required when using ELB with fail2ban because ELB only forwards the client IP to the server in an X-Forwarded-For header. Following this guide will enable you to use ELB, Apache webservers and AWS ACL together with fail2ban for an dynamic firewall solution.
+This package includes a script and fail2ban configuration that allows you to use fail2ban when utilizing AWS elastic load balancer (ELB) and an Nginx webserver. It is useful to protect your site against DoS and brute force attacks when behind a reverse proxy load balancer like ELB. Special consideration is required when using ELB with fail2ban because ELB only forwards the client IP to the server in an X-Forwarded-For header. Following this guide will enable you to use ELB, Nginx webservers and AWS ACL together with fail2ban for an dynamic firewall solution.
+The code in this repository is rewritten in Python and uses AWS WAF IP Conditions to ban/unban IP from fail2ban.
 
 Dependencies
-------
+------------
+
 * AWS CLI must be installed and your access credentials must be setup as specified in AWS CLI docs (either through a ~/.aws/config or through an environment variable). ** IF someone would like to update the code to use AWS composer package, I'm sure that would make many people's lives easier **
-* An ACL must be created and associated with your load balancer and webservers in AWS
+* A WAF IP Sets rule must be created and associated with your application load balancer in AWS
 * Make sure that the credentials you've configured in AWS for the AWS CLI allow read/write to ACL resources.
-* Your apache logs must log the X-Forwarded-For header instead of the ELB IP address. Instructions on how to do so are found below.
+* Your nginx logs must log the X-Forwarded-For header instead of the ELB IP address. Instructions on how to do so are found below.
 
 Installation
 -----
-1. The recommended method of installation is by using composer to install: `composer require anthonymartin/aws_acl_fail2ban` - alternatively, you can clone or download this repository.
-2. Ensure that your apache configuration and your fail2ban configuration is correct. Some help has been provided below.
 
-Apache Configuration
-------
-1. Enable RemoteIP mod
-2. Update apache configuration - the configuration below is what my configuration found at /etc/apache2/apache2.conf looks like. Be sure to include RemoteIPHeader and replace LogFormat with the lines found below.
-  
-  ```
-    RemoteIPHeader X-Forwarded-For
-    LogFormat "%v:%p %h %l %u %t \"%r\" %>s %O \"%{Referer}i\" \"%{User-Agent}i\"" vhost_combined
-    LogFormat "%a %l %u %t \"%r\" %>s %O \"%{Referer}i\" \"%{User-Agent}i\"" combined
-    LogFormat "%h %l %u %t \"%r\" %>s %O" common
-    LogFormat "%{Referer}i -> %U" referer
-    LogFormat "%{User-agent}i" agent
-  ```
+For now the only possibility to install the project is only to clone the repository.
 
-3. run `sudo service apache2 reload`
- 
+Nginx configuration
+-------------------
+
+1. Enable nginx real_ip_module
+2. Edit /etc/nginx/nginx.conf
+
+```
+http {
+    ...
+    real_ip_header X-Forwarded-For;
+    set_real_ip_from 0.0.0.0/0;
+    ...
+}
+```
+
+The value for ```set_real_ip_from``` must be equal to a virtual IP of your load balancer (e.g. 172.66.0.0/16).
 
 fail2ban Configuration
 -----
-1. Copy `fail2ban/action.d/aws-acl.conf` in `/etc/fail2ban/action.d/` directory
-2. Copy `fail2ban/filter.d/aws-acl-example-filter.conf` to `/etc/fail2ban/filter.d/` directory
-2. Update `actionban` and `actionunban` definitions in `/etc/fail2ban/action.d/aws-acl.conf`. You need tos replace both instances of `/path/to/aws-acl-fail2ban` to the location of `aws-acl-fail2ban` on your server. If you've installed with composer, the location is `vendor/bin/aws-acl-fail2ban`, otherwise the location is in `bin/aws-acl-fail2ban`. You should use the absolute path when updating `actionban` and `actionunban`.
-3. Replace both instances of `ACL_ID_GOES_HERE` in `/etc/fail2ban/action.d/aws-acl.conf` with the acl-id of the ACL that you would like to use.
-3. Create or update your jail.local configuration. Replace the filter definition below with your own filter if you have one. The example filter configuration included in this package will match all POST and GET requests that are not images, css or javascript (note this doesn't include font files as of this time, but it probably should). The filter together with the jail.local configuration here will be useful for stopping crawl attempts and certain types of HTTP Flood DoS or brute force attacks. Here's an example jail.local configuration:
+1. Copy `fail2ban/action.d/aws-waf.conf` in `/etc/fail2ban/action.d/` directory
+2. Copy `fail2ban/filter.d/aws-waf-example-filter.conf` to `/etc/fail2ban/filter.d/` directory
+3. Update `actionban` and `actionunban` definitions in `/etc/fail2ban/action.d/aws-waf.conf`. You need to replace both instances of `/path/to/fail2ban_aws_waf.py` to the location of `fail2ban_aws_waf.py` script on your server. You should use the absolute path when updating `actionban` and `actionunban`.
+4. Optionally you can leave the parameter `--logpath` and set the correct path to log directory (it will contain logs about AWS API operations). Otherwise remove `--logpath` parameter.
+5. Replace both instances of `AWS_WAF_IP_SET_ID` in `/etc/fail2ban/action.d/aws-waf.conf` with the AWS WAF IP Sets ID that you would like to use.
+6. Create or update your jail.local configuration. Replace the filter definition below with your own filter if you have one. The example filter configuration included in this package will match all POST and GET requests that are not images, css or javascript (note this doesn't include font files as of this time, but it probably should). The filter together with the jail.local configuration here will be useful for stopping crawl attempts and certain types of HTTP Flood DoS or brute force attacks. Here's an example jail.local configuration:
   
-  ```
-  [aws-acl-example]
-  enabled = true
-  filter = aws-acl-example-filter
-  action = aws-acl
+```
+[aws-waf-example]
+enabled  = true
+port     = http,https
+filter   = aws-waf-example-filter
+logpath  = /var/log/nginx/*.access.*
+findtime = 120
+maxretry = 200
+action = aws-acl
     sendmail-whois[name=LoginDetect, dest=youremail@example.com, sender=youremail@local.hostname, sendername="Fail2Ban"]
-  logpath = /var/log/apache2/access.log
-  maxretry = 60
-  findtime = 60
-  bantime = 14400
-  ```
-  
+```
