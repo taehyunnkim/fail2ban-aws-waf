@@ -2,7 +2,7 @@ The code is inspired by https://github.com/anthonymartin/aws-acl-fail2ban which 
 
 # fail2ban-aws-waf
 
-This package includes a script and fail2ban configuration that allows you to use fail2ban when utilizing AWS elastic load balancer (ELB) and an Nginx webserver. It is useful to protect your site against DoS and brute force attacks when behind a reverse proxy load balancer like ELB. Special consideration is required when using ELB with fail2ban because ELB only forwards the client IP to the server in an X-Forwarded-For header. Following this guide will enable you to use ELB, Nginx webservers and AWS ACL together with fail2ban for an dynamic firewall solution.
+This package includes a script and fail2ban configuration that allows you to use fail2ban when utilizing AWS elastic load balancer (ELB) and an Nginx webserver. It is useful to protect your site against DoS and brute force attacks when behind a reverse proxy load balancer like ELB. Special consideration is required when using ELB with fail2ban because ELB only forwards the client IP to the server in an X-Forwarded-For header. Following this guide will enable you to use ELB, Nginx webservers and AWS WAF together with fail2ban for an dynamic firewall solution.
 The code in this repository is rewritten in Python and uses AWS WAF IP Conditions to ban/unban IP from fail2ban.
 
 Dependencies
@@ -10,7 +10,7 @@ Dependencies
 
 * AWS CLI must be installed and your access credentials must be setup as specified in AWS CLI docs (either through a ~/.aws/config or through an environment variable). ** IF someone would like to update the code to use AWS composer package, I'm sure that would make many people's lives easier **
 * A WAF IP Sets rule must be created and associated with your application load balancer in AWS
-* Make sure that the credentials you've configured in AWS for the AWS CLI allow read/write to ACL resources.
+* Make sure that the credentials you've configured in AWS for the AWS CLI allow read/write to WAF resources.
 * Your nginx logs must log the X-Forwarded-For header instead of the ELB IP address. Instructions on how to do so are found below.
 
 Installation
@@ -52,6 +52,6 @@ filter   = aws-waf-example-filter
 logpath  = /var/log/nginx/*.access.*
 findtime = 120
 maxretry = 200
-action = aws-acl
+action = aws-waf
     sendmail-whois[name=LoginDetect, dest=youremail@example.com, sender=youremail@local.hostname, sendername="Fail2Ban"]
 ```

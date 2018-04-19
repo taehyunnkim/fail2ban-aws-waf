@@ -102,6 +102,13 @@ def parse_cli_args():
     )
 
     parser.add_argument(
+        '--jail-name',
+        type=str,
+        required=True,
+        help='Fail2ban jail name'
+    )
+
+    parser.add_argument(
         '--ip',
         metavar='x.x.x.x',
         type=str,
@@ -135,10 +142,11 @@ if __name__ == '__main__':
 
     AWS_DEBUG = args.debug
     AWS_LOGPATH = args.logpath
+
     AWS_LOGGER = logging.getLogger('fail2ban_aws_waf')
     AWS_LOGGER.setLevel(logging.INFO)
 
-    formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s')
+    formatter = logging.Formatter('%(asctime)s [{}] [%(levelname)s] %(message)s'.format(args.jail_name))
     stream_handler = logging.StreamHandler()
     stream_handler.setFormatter(formatter)
     AWS_LOGGER.addHandler(stream_handler)
