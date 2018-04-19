@@ -15,8 +15,8 @@ def exec_command(cmd):
     p = subprocess.Popen(cmd.split(' '), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     out, err = p.communicate()
 
-    out = out.decode('UTF-8')
-    err = err.decode('UTF-8')
+    out = out.encode('ascii', 'ignore')
+    err = err.encode('ascii', 'ignore')
 
     if err is not '':
         raise RuntimeError(err)
