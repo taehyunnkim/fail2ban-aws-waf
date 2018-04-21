@@ -24,8 +24,12 @@ def exec_command(cmd):
     return json.loads(out)
 
 
+def get_aws_waf_api_name():
+    return 'aws waf-regional' if AWS_GLOBAL is False else 'aws waf'
+
+
 def get_change_token():
-    result = exec_command('aws waf-regional get-change-token')
+    result = exec_command('{} get-change-token'.format(get_aws_waf_api_name()))
 
     if 'ChangeToken' not in result:
         raise RuntimeError('Could not find ChangeToken in AWS API response')
@@ -41,7 +45,7 @@ def create_ip_updates_param(action, ip):
 
 
 def is_ip_in_ip_sets(ip_set_id, ip):
-    result = exec_command('aws waf-regional get-ip-set --ip-set-id {}'.format(ip_set_id))
+    result = exec_command('{} get-ip-set --ip-set-id {}'.format(get_aws_waf_api_name(), ip_set_id))
 
     if 'IPSet' not in result:
         raise RuntimeError('Could not find IPSet in AWS API response')
@@ -69,7 +73,8 @@ def update_ip_set(change_token, ip_set_id, action, ip):
 
         return
 
-    result = exec_command("aws waf-regional update-ip-set {} --change-token {} --ip-set-id {} --updates {}".format(
+    result = exec_command("{} update-ip-set {} --change-token {} --ip-set-id {} --updates {}".format(
+        get_aws_waf_api_name(),
         '--debug' if AWS_DEBUG is True else '',
         change_token,
         ip_set_id,
@@ -130,6 +135,13 @@ def parse_cli_args():
         help='Do not run the bot in a loop, but instead execute it just once and exit.'
     )
 
+    parser.add_argument(
+        '--global-waf',
+        action='store_true',
+        default=False,
+        help='Defines whether to use waf-regional or waf global API (defaults to regional).'
+    )
+
     return parser.parse_args()
 
 
@@ -141,6 +153,7 @@ if __name__ == '__main__':
     args = parse_cli_args()
 
     AWS_DEBUG = args.debug
+    AWS_GLOBAL = args.global_waf
     AWS_LOGPATH = args.logpath
 
     AWS_LOGGER = logging.getLogger('fail2ban_aws_waf')

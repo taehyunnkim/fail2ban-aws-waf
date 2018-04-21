@@ -42,7 +42,8 @@ fail2ban Configuration
 3. Update `actionban` and `actionunban` definitions in `/etc/fail2ban/action.d/aws-waf.conf`. You need to replace both instances of `/path/to/fail2ban_aws_waf.py` to the location of `fail2ban_aws_waf.py` script on your server. You should use the absolute path when updating `actionban` and `actionunban`.
 4. Optionally you can leave the parameter `--logpath` and set the correct path to log directory (it will contain logs about AWS API operations). Otherwise remove `--logpath` parameter.
 5. Replace both instances of `AWS_WAF_IP_SET_ID` in `/etc/fail2ban/action.d/aws-waf.conf` with the AWS WAF IP Sets ID that you would like to use.
-6. Create or update your jail.local configuration. Replace the filter definition below with your own filter if you have one. The example filter configuration included in this package will match all POST and GET requests that are not images, css or javascript (note this doesn't include font files as of this time, but it probably should). The filter together with the jail.local configuration here will be useful for stopping crawl attempts and certain types of HTTP Flood DoS or brute force attacks. Here's an example jail.local configuration:
+6. Add `--global` flag if you work with global WAF (e.g. for Cloudfront)
+7. Create or update your jail.local configuration. Replace the filter definition below with your own filter if you have one. The example filter configuration included in this package will match all POST and GET requests that are not images, css or javascript (note this doesn't include font files as of this time, but it probably should). The filter together with the jail.local configuration here will be useful for stopping crawl attempts and certain types of HTTP Flood DoS or brute force attacks. Here's an example jail.local configuration:
   
 ```
 [aws-waf-example]
@@ -52,6 +53,6 @@ filter   = aws-waf-example-filter
 logpath  = /var/log/nginx/*.access.*
 findtime = 120
 maxretry = 200
-action = aws-waf
+action = aws-waf[name=Example]
     sendmail-whois[name=LoginDetect, dest=youremail@example.com, sender=youremail@local.hostname, sendername="Fail2Ban"]
 ```
