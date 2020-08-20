@@ -25,66 +25,80 @@ def exec_command(cmd):
 
 
 def get_aws_waf_api_name():
-    return 'aws waf-regional' if AWS_GLOBAL is False else 'aws waf'
+    return 'aws wafv2 --scope=REGIONAL' if AWS_GLOBAL is False else 'aws wafv2 --scope=CLOUDFRONT'
 
 
-def get_change_token():
-    result = exec_command('{} get-change-token'.format(get_aws_waf_api_name()))
+def get_lock_token(ip_set_id, ip_set_name):
+    result = exec_command('{} get-ip-set --id {} --name {}'.format(get_aws_waf_api_name(), ip_set_id, ip_set_name))
 
-    if 'ChangeToken' not in result:
-        raise RuntimeError('Could not find ChangeToken in AWS API response')
+    if 'LockToken' not in result:
+        raise RuntimeError('Could not find LockToken in AWS API response')
 
-    return result['ChangeToken']
-
-
-def create_ip_updates_param(action, ip):
-    return json.dumps(
-        [{'Action': action.upper(), 'IPSetDescriptor': {'Type': 'IPV4', 'Value': '{}/32'.format(ip)}}],
-        separators=(',', ':')
-    )
+    return result['LockToken']
 
 
-def is_ip_in_ip_sets(ip_set_id, ip):
-    result = exec_command('{} get-ip-set --ip-set-id {}'.format(get_aws_waf_api_name(), ip_set_id))
+def create_ip_updates_param(action, ip_set_id, ip_set_name, ip):
+    result = exec_command('{} get-ip-set --id {} --name {}'.format(get_aws_waf_api_name(), ip_set_id, ip_set_name))
 
     if 'IPSet' not in result:
         raise RuntimeError('Could not find IPSet in AWS API response')
 
-    if 'IPSetDescriptors' not in result['IPSet']:
-        raise RuntimeError('Could not find IPSetDescriptors in AWS API response')
+    if 'Addresses' not in result['IPSet']:
+        raise RuntimeError('Could not find Addresses in AWS API response')
 
-    ips = result['IPSet']['IPSetDescriptors']
+    ips = result['IPSet']['Addresses']
+
+    if action is 'DELETE':
+        ips.remove('{}/32'.format(ip))
+
+    elif action is 'INSERT':
+        ips.append('{}/32'.format(ip))
+
+    return ' '.join(ips)
+
+
+def is_ip_in_ip_sets(ip_set_id, ip_set_name, ip):
+    result = exec_command('{} get-ip-set --id {} --name {}'.format(get_aws_waf_api_name(), ip_set_id, ip_set_name))
+
+    if 'IPSet' not in result:
+        raise RuntimeError('Could not find IPSet in AWS API response')
+
+    if 'Addresses' not in result['IPSet']:
+        raise RuntimeError('Could not find Addresses in AWS API response')
+
+    ips = result['IPSet']['Addresses']
 
     for ip_in_waf in ips:
-        if ip_in_waf['Value'] == '{}/32'.format(ip):
+        if ip_in_waf == '{}/32'.format(ip):
             return True
 
     return False
 
 
-def update_ip_set(change_token, ip_set_id, action, ip):
-    if action == 'INSERT' and is_ip_in_ip_sets(ip_set_id, ip):
+def update_ip_set(lock_token, ip_set_id, ip_set_name, action, ip):
+    if action == 'INSERT' and is_ip_in_ip_sets(ip_set_id, ip_set_name, ip):
         log_message(logging.INFO, 'Attempt to ban IP {}. IP is already in IP set in WAF. Stopping script.'.format(ip))
 
         return
 
-    if action == 'DELETE' and not is_ip_in_ip_sets(ip_set_id, ip):
+    if action == 'DELETE' and not is_ip_in_ip_sets(ip_set_id, ip_set_name, ip):
         log_message(logging.INFO, 'Attempt to unban IP {}. IP is not in IP set in WAF. Stopping script.'.format(ip))
 
         return
 
-    result = exec_command("{} update-ip-set {} --change-token {} --ip-set-id {} --updates {}".format(
+    result = exec_command("{} update-ip-set {} --lock-token {} --id {} --name {} --addresses {}".format(
         get_aws_waf_api_name(),
         '--debug' if AWS_DEBUG is True else '',
-        change_token,
+        lock_token,
         ip_set_id,
-        create_ip_updates_param(action, ip)
+        ip_set_name,
+        create_ip_updates_param(action, ip_set_id, ip_set_name, ip)
     ))
 
-    if 'ChangeToken' not in result:
-        raise RuntimeError('Could not find ChangeToken in AWS API response')
+    if 'NextLockToken' not in result:
+        raise RuntimeError('Could not find NextLockToken in AWS API response')
 
-    return result['ChangeToken']
+    return result['NextLockToken']
 
 
 def parse_cli_args():
@@ -96,6 +110,14 @@ def parse_cli_args():
         type=str,
         required=True,
         help='AWS WAF IP set ID'
+    )
+
+    parser.add_argument(
+        '--ip-set-name',
+        metavar='AWS GUID',
+        type=str,
+        required=True,
+        help='AWS WAF IP set NAME'
     )
 
     parser.add_argument(
@@ -181,8 +203,9 @@ if __name__ == '__main__':
 
     try:
         update_ip_set(
-            get_change_token(),
+            get_lock_token(args.ip_set_id, args.ip_set_name),
             args.ip_set_id,
+            args.ip_set_name,
             'INSERT' if args.action == 'ban' else 'DELETE',
             args.ip
         )
