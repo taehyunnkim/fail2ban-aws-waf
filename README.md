@@ -1,6 +1,6 @@
 The code is inspired by https://github.com/anthonymartin/aws-acl-fail2ban which bans/unbans IPs using AWS Network ACL.
 
-# fail2ban-aws-waf
+# fail2ban-aws-wafv2
 
 This package includes a script and fail2ban configuration that allows you to use fail2ban when utilizing AWS elastic load balancer (ELB) and an Nginx webserver. It is useful to protect your site against DoS and brute force attacks when behind a reverse proxy load balancer like ELB. Special consideration is required when using ELB with fail2ban because ELB only forwards the client IP to the server in an X-Forwarded-For header. Following this guide will enable you to use ELB, Nginx webservers and AWS WAF together with fail2ban for an dynamic firewall solution.
 The code in this repository is rewritten in Python and uses AWS WAF IP Conditions to ban/unban IP from fail2ban.
