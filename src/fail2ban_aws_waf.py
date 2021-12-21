@@ -9,17 +9,21 @@ import os
 from time import gmtime, strftime
 
 
-def exec_command(cmd):
+def exec_command(cmd, empty=False):
     log_message(logging.INFO, 'Executing command: {}'.format(cmd))
+    
+    command_list = cmd.split(' ')
+    if empty:
+        command_list.pop()
 
-    p = subprocess.Popen(cmd.split(' '), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    p = subprocess.Popen(command_list, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     out, err = p.communicate()
 
     out = out.encode('ascii', 'ignore')
     err = err.encode('ascii', 'ignore')
 
     if err is not '':
-        raise RuntimeError(err)
+       raise RuntimeError(err)
 
     return json.loads(out)
 
@@ -50,7 +54,6 @@ def create_ip_updates_param(action, ip_set_id, ip_set_name, ip):
 
     if action is 'DELETE':
         ips.remove('{}/32'.format(ip))
-
     elif action is 'INSERT':
         ips.append('{}/32'.format(ip))
 
@@ -86,14 +89,16 @@ def update_ip_set(lock_token, ip_set_id, ip_set_name, action, ip):
 
         return
 
+    updated_ip_addresses = create_ip_updates_param(action, ip_set_id, ip_set_name, ip)
+
     result = exec_command("{} update-ip-set {} --lock-token {} --id {} --name {} --addresses {}".format(
         get_aws_waf_api_name(),
         '--debug' if AWS_DEBUG is True else '',
         lock_token,
         ip_set_id,
         ip_set_name,
-        create_ip_updates_param(action, ip_set_id, ip_set_name, ip)
-    ))
+        updated_ip_addresses
+    ), True if len(updated_ip_addresses) == 0 else False)
 
     if 'NextLockToken' not in result:
         raise RuntimeError('Could not find NextLockToken in AWS API response')
@@ -207,7 +212,7 @@ if __name__ == '__main__':
             args.ip_set_id,
             args.ip_set_name,
             'INSERT' if args.action == 'ban' else 'DELETE',
-            args.ip
+            args.ip,
         )
     except Exception as e:
         log_message(logging.ERROR, 'Exception cought: {}: {}'.format(type(e).__name__, str(e)))
