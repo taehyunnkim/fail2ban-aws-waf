@@ -98,7 +98,7 @@ def update_ip_set(lock_token, ip_set_id, ip_set_name, action, ip):
         ip_set_id,
         ip_set_name,
         updated_ip_addresses
-    ), True if len(updated_ip_addresses) == 0 else False)
+    ), len(updated_ip_addresses) == 0)
 
     if 'NextLockToken' not in result:
         raise RuntimeError('Could not find NextLockToken in AWS API response')
